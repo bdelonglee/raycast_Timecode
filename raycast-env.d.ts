@@ -21,3 +21,4 @@ declare namespace Arguments {
   /** Arguments passed to the `timecode-calc` command */
   export type TimecodeCalc = {}
 }
+
