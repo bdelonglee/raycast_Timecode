@@ -180,19 +180,22 @@ export default function Command() {
           title="Could not parse expression"
           subtitle='try:  11151605   or   11151605 - 10000000'
         />
-      ) : null}
-      <List.Section title="Settings">
-        <List.Item
-          icon={Icon.Gear}
-          title="Frame Rate"
-          subtitle={`${fps.label} fps — click to change`}
-          actions={
-            <ActionPanel>
-              <Action title="Change Frame Rate" onAction={openFpsSelector} />
-            </ActionPanel>
-          }
-        />
-      </List.Section>
+      ) : (
+        // No input yet — show settings so the user can set the frame rate.
+        // Hidden while results are visible; use "Change Frame Rate" in any result's action panel instead.
+        <List.Section title="Settings">
+          <List.Item
+            icon={Icon.Gear}
+            title="Frame Rate"
+            subtitle={`${fps.label} fps — press Enter to change`}
+            actions={
+              <ActionPanel>
+                <Action title="Change Frame Rate" onAction={openFpsSelector} />
+              </ActionPanel>
+            }
+          />
+        </List.Section>
+      )}
     </List>
   );
 }
