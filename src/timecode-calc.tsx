@@ -20,6 +20,37 @@ function fmtDuration(secs: number): string {
   return `${s}.${pad(r, 3)} s`;
 }
 
+// ── Syntax reference ─────────────────────────────────────────────────────────
+
+function HelpView() {
+  return (
+    <List navigationTitle="Syntax Reference" searchBarPlaceholder="Filter…">
+      <List.Section title="Timecode input — compact digits, zero-padded left">
+        <List.Item title="11151605" accessories={[{ text: "→  11:15:16:05" }]} />
+        <List.Item title="500"      accessories={[{ text: "→  00:00:05:00" }]} />
+        <List.Item title="10000000" accessories={[{ text: "→  10:00:00:00" }]} />
+      </List.Section>
+      <List.Section title="Suffixes">
+        <List.Item title="(none)" subtitle="Timecode  HH:MM:SS:FF" accessories={[{ text: "11151605" }]} />
+        <List.Item title="f"      subtitle="Raw frames"            accessories={[{ text: "100f" }]} />
+        <List.Item title="s"      subtitle="Seconds"               accessories={[{ text: "30s · 1.5s" }]} />
+        <List.Item title="m"      subtitle="Minutes"               accessories={[{ text: "2m · 0.5m" }]} />
+      </List.Section>
+      <List.Section title="Expression examples">
+        <List.Item title="11151605 - 10000000" subtitle="TC minus TC" />
+        <List.Item title="11151605 + 100f"     subtitle="TC plus raw frames" />
+        <List.Item title="11151605 - 30s"      subtitle="TC minus 30 seconds" />
+        <List.Item title="11151605 - 2m"       subtitle="TC minus 2 minutes" />
+        <List.Item title="100f + 30s"          subtitle="mix any operand types freely" />
+      </List.Section>
+      <List.Section title="Output">
+        <List.Item title="↵ on any result row"  subtitle="copy its value to clipboard" />
+        <List.Item title="⌘K on any result row" subtitle="open action panel · change frame rate" />
+      </List.Section>
+    </List>
+  );
+}
+
 // ── Frame rate selector ───────────────────────────────────────────────────────
 
 function FpsSelector({ current, onSelect }: { current: FpsKey; onSelect: (k: FpsKey) => void }) {
@@ -181,8 +212,7 @@ export default function Command() {
           subtitle='try:  11151605   or   11151605 - 10000000'
         />
       ) : (
-        // No input yet — show settings so the user can set the frame rate.
-        // Hidden while results are visible; use "Change Frame Rate" in any result's action panel instead.
+        // No input yet — show settings and help. Hidden while results are visible.
         <List.Section title="Settings">
           <List.Item
             icon={Icon.Gear}
@@ -191,6 +221,16 @@ export default function Command() {
             actions={
               <ActionPanel>
                 <Action title="Change Frame Rate" onAction={openFpsSelector} />
+              </ActionPanel>
+            }
+          />
+          <List.Item
+            icon={Icon.Info}
+            title="Syntax Reference"
+            subtitle="timecode · f frames · s seconds · m minutes"
+            actions={
+              <ActionPanel>
+                <Action title="View Syntax" onAction={() => push(<HelpView />)} />
               </ActionPanel>
             }
           />
