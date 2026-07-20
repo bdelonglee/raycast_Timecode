@@ -129,10 +129,11 @@ export function framesToRealSeconds(frames: number, fps: FpsConfig): number {
 
 // ── Expression parsing ────────────────────────────────────────────────────────
 
-// An operand is either a timecode ("11151605") or raw frames ("100f").
+// An operand is a timecode ("11151605"), raw frames ("100f"), or seconds ("30s" / "1.5s").
 export type Operand =
   | { kind: "tc"; tc: TC }
-  | { kind: "frames"; frames: number };
+  | { kind: "frames"; frames: number }
+  | { kind: "seconds"; seconds: number };
 
 export type Expr =
   | { kind: "single"; a: Operand }
@@ -141,21 +142,26 @@ export type Expr =
 function parseOperand(s: string): Operand | null {
   const frameMatch = s.match(/^(\d+)f$/i);
   if (frameMatch) return { kind: "frames", frames: parseInt(frameMatch[1], 10) };
+  const secondsMatch = s.match(/^(\d+(?:\.\d+)?)s$/i);
+  if (secondsMatch) return { kind: "seconds", seconds: parseFloat(secondsMatch[1]) };
   const tc = parseTcInput(s);
   if (tc) return { kind: "tc", tc };
   return null;
 }
 
 function formatOperand(op: Operand): string {
-  return op.kind === "frames" ? `${op.frames}f` : formatTc(op.tc);
+  if (op.kind === "frames") return `${op.frames}f`;
+  if (op.kind === "seconds") return `${op.seconds}s`;
+  return formatTc(op.tc);
 }
 
 export function parseExpr(raw: string): Expr | null {
   const s = raw.trim();
   if (!s) return null;
 
-  // Match: <operand> [+-] <operand>, where operand is digits or digits+"f"
-  const bin = s.match(/^(\d{1,8}f?)\s*([+\-])\s*(\d+f?)$/i);
+  // Match: <operand> [+-] <operand>
+  // Operand: digits (TC), digits+"f" (frames), or digits[.digits]+"s" (seconds)
+  const bin = s.match(/^([\d.]+[fs]?)\s*([+\-])\s*([\d.]+[fs]?)$/i);
   if (bin) {
     const a = parseOperand(bin[1]);
     const b = parseOperand(bin[3]);
@@ -181,6 +187,7 @@ export interface CalcResult {
 
 function operandToFrames(op: Operand, fps: FpsConfig): { frames: number; error?: string } {
   if (op.kind === "frames") return { frames: op.frames };
+  if (op.kind === "seconds") return { frames: Math.round(op.seconds * fps.nominalFps) };
   const err = validateTc(op.tc, fps);
   if (err) return { frames: 0, error: err };
   return { frames: tcToFrames(op.tc, fps) };
