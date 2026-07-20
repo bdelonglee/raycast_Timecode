@@ -129,11 +129,12 @@ export function framesToRealSeconds(frames: number, fps: FpsConfig): number {
 
 // ── Expression parsing ────────────────────────────────────────────────────────
 
-// An operand is a timecode ("11151605"), raw frames ("100f"), or seconds ("30s" / "1.5s").
+// An operand is a timecode ("11151605"), raw frames ("100f"), seconds ("30s" / "1.5s"), or minutes ("2m").
 export type Operand =
   | { kind: "tc"; tc: TC }
   | { kind: "frames"; frames: number }
-  | { kind: "seconds"; seconds: number };
+  | { kind: "seconds"; seconds: number }
+  | { kind: "minutes"; minutes: number };
 
 export type Expr =
   | { kind: "single"; a: Operand }
@@ -144,6 +145,8 @@ function parseOperand(s: string): Operand | null {
   if (frameMatch) return { kind: "frames", frames: parseInt(frameMatch[1], 10) };
   const secondsMatch = s.match(/^(\d+(?:\.\d+)?)s$/i);
   if (secondsMatch) return { kind: "seconds", seconds: parseFloat(secondsMatch[1]) };
+  const minutesMatch = s.match(/^(\d+(?:\.\d+)?)m$/i);
+  if (minutesMatch) return { kind: "minutes", minutes: parseFloat(minutesMatch[1]) };
   const tc = parseTcInput(s);
   if (tc) return { kind: "tc", tc };
   return null;
@@ -152,6 +155,7 @@ function parseOperand(s: string): Operand | null {
 function formatOperand(op: Operand): string {
   if (op.kind === "frames") return `${op.frames}f`;
   if (op.kind === "seconds") return `${op.seconds}s`;
+  if (op.kind === "minutes") return `${op.minutes}m`;
   return formatTc(op.tc);
 }
 
@@ -188,6 +192,7 @@ export interface CalcResult {
 function operandToFrames(op: Operand, fps: FpsConfig): { frames: number; error?: string } {
   if (op.kind === "frames") return { frames: op.frames };
   if (op.kind === "seconds") return { frames: Math.round(op.seconds * fps.nominalFps) };
+  if (op.kind === "minutes") return { frames: Math.round(op.minutes * 60 * fps.nominalFps) };
   const err = validateTc(op.tc, fps);
   if (err) return { frames: 0, error: err };
   return { frames: tcToFrames(op.tc, fps) };
