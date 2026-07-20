@@ -129,23 +129,41 @@ export function framesToRealSeconds(frames: number, fps: FpsConfig): number {
 
 // ── Expression parsing ────────────────────────────────────────────────────────
 
+// An operand is either a timecode ("11151605") or raw frames ("100f").
+export type Operand =
+  | { kind: "tc"; tc: TC }
+  | { kind: "frames"; frames: number };
+
 export type Expr =
-  | { kind: "single"; tc: TC }
-  | { kind: "binary"; a: TC; op: "+" | "-"; b: TC };
+  | { kind: "single"; a: Operand }
+  | { kind: "binary"; a: Operand; op: "+" | "-"; b: Operand };
+
+function parseOperand(s: string): Operand | null {
+  const frameMatch = s.match(/^(\d+)f$/i);
+  if (frameMatch) return { kind: "frames", frames: parseInt(frameMatch[1], 10) };
+  const tc = parseTcInput(s);
+  if (tc) return { kind: "tc", tc };
+  return null;
+}
+
+function formatOperand(op: Operand): string {
+  return op.kind === "frames" ? `${op.frames}f` : formatTc(op.tc);
+}
 
 export function parseExpr(raw: string): Expr | null {
   const s = raw.trim();
   if (!s) return null;
 
-  const bin = s.match(/^(\d{1,8})\s*([+\-])\s*(\d{1,8})$/);
+  // Match: <operand> [+-] <operand>, where operand is digits or digits+"f"
+  const bin = s.match(/^(\d{1,8}f?)\s*([+\-])\s*(\d+f?)$/i);
   if (bin) {
-    const a = parseTcInput(bin[1]);
-    const b = parseTcInput(bin[3]);
+    const a = parseOperand(bin[1]);
+    const b = parseOperand(bin[3]);
     if (a && b) return { kind: "binary", a, op: bin[2] as "+" | "-", b };
   }
 
-  const tc = parseTcInput(s);
-  if (tc) return { kind: "single", tc };
+  const single = parseOperand(s);
+  if (single) return { kind: "single", a: single };
 
   return null;
 }
@@ -153,7 +171,7 @@ export function parseExpr(raw: string): Expr | null {
 // ── Evaluation ────────────────────────────────────────────────────────────────
 
 export interface CalcResult {
-  exprLabel: string;     // parsed interpretation shown to user: "11:15:16:05 − 10:00:00:00"
+  exprLabel: string;     // parsed interpretation: "11:15:16:05 − 100f"
   resultFrames: number;  // signed (negative when A < B in subtraction)
   resultTc: TC | null;   // null when resultFrames < 0
   absSeconds: number;    // |resultFrames| in real seconds
@@ -161,38 +179,41 @@ export interface CalcResult {
   error?: string;
 }
 
+function operandToFrames(op: Operand, fps: FpsConfig): { frames: number; error?: string } {
+  if (op.kind === "frames") return { frames: op.frames };
+  const err = validateTc(op.tc, fps);
+  if (err) return { frames: 0, error: err };
+  return { frames: tcToFrames(op.tc, fps) };
+}
+
 export function evaluate(expr: Expr, fps: FpsConfig): CalcResult {
   if (expr.kind === "single") {
-    const err = validateTc(expr.tc, fps);
-    if (err) {
-      return { exprLabel: formatTc(expr.tc), resultFrames: 0, resultTc: null, absSeconds: 0, fpsLabel: fps.label, error: err };
-    }
-    const frames = tcToFrames(expr.tc, fps);
+    const { frames, error } = operandToFrames(expr.a, fps);
+    const label = formatOperand(expr.a);
+    if (error) return { exprLabel: label, resultFrames: 0, resultTc: null, absSeconds: 0, fpsLabel: fps.label, error };
     return {
-      exprLabel: formatTc(expr.tc),
+      exprLabel: label,
       resultFrames: frames,
-      resultTc: expr.tc,
+      resultTc: framesToTc(frames, fps),
       absSeconds: framesToRealSeconds(frames, fps),
       fpsLabel: fps.label,
     };
   }
 
-  const errA = validateTc(expr.a, fps);
-  if (errA) {
-    return { exprLabel: `${formatTc(expr.a)} ${expr.op} ${formatTc(expr.b)}`, resultFrames: 0, resultTc: null, absSeconds: 0, fpsLabel: fps.label, error: errA };
+  const resA = operandToFrames(expr.a, fps);
+  if (resA.error) {
+    return { exprLabel: `${formatOperand(expr.a)} ${expr.op} ${formatOperand(expr.b)}`, resultFrames: 0, resultTc: null, absSeconds: 0, fpsLabel: fps.label, error: resA.error };
   }
-  const errB = validateTc(expr.b, fps);
-  if (errB) {
-    return { exprLabel: `${formatTc(expr.a)} ${expr.op} ${formatTc(expr.b)}`, resultFrames: 0, resultTc: null, absSeconds: 0, fpsLabel: fps.label, error: errB };
+  const resB = operandToFrames(expr.b, fps);
+  if (resB.error) {
+    return { exprLabel: `${formatOperand(expr.a)} ${expr.op} ${formatOperand(expr.b)}`, resultFrames: 0, resultTc: null, absSeconds: 0, fpsLabel: fps.label, error: resB.error };
   }
 
-  const framesA = tcToFrames(expr.a, fps);
-  const framesB = tcToFrames(expr.b, fps);
-  const resultFrames = expr.op === "+" ? framesA + framesB : framesA - framesB;
+  const resultFrames = expr.op === "+" ? resA.frames + resB.frames : resA.frames - resB.frames;
   const opChar = expr.op === "+" ? "+" : "−";
 
   return {
-    exprLabel: `${formatTc(expr.a)} ${opChar} ${formatTc(expr.b)}`,
+    exprLabel: `${formatOperand(expr.a)} ${opChar} ${formatOperand(expr.b)}`,
     resultFrames,
     resultTc: resultFrames >= 0 ? framesToTc(resultFrames, fps) : null,
     absSeconds: framesToRealSeconds(Math.abs(resultFrames), fps),

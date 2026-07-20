@@ -166,7 +166,7 @@ export default function Command() {
   return (
     <List
       navigationTitle={`Timecode Calculator · ${fps.label} fps`}
-      searchBarPlaceholder={`e.g. 11151605 - 10000000  ·  ${fps.label} fps`}
+      searchBarPlaceholder={`e.g. 11151605 - 10000000  or  11151605 - 100f  ·  ${fps.label} fps`}
       onSearchTextChange={setInput}
       filtering={false}
     >
